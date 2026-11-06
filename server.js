@@ -25,7 +25,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/api/health') return json(res, 200, { ok:true, aiConfigured:Boolean(process.env.OPENAI_API_KEY || process.env.DASHSCOPE_API_KEY), provider:process.env.DASHSCOPE_API_KEY ? 'qwen' : process.env.OPENAI_API_KEY ? 'openai' : 'none' });
   // Deliberately server-side: no browser code can read OPENAI_API_KEY.
   if (req.method === 'POST' && req.url === '/api/ai') {
-    if (!process.env.OPENAI_API_KEY && !process.env.DASHSCOPE_API_KEY) return json(res, 503, { error:'尚未配置模型服务；已切换为本地叙事引擎。' });
+    if (!process.env.OPENAI_API_KEY && !process.env.DASHSCOPE_API_KEY) return json(res, 503, { error:'尚未配置千问模型服务。请在服务端配置 DASHSCOPE_API_KEY。' });
     try {
       const payload = await readBody(req);
       const instruction = payload.kind === 'scene' ? sceneInstructions : narrativeInstructions;
@@ -36,7 +36,7 @@ const server = http.createServer(async (req, res) => {
           ? JSON.stringify({ model:process.env.QWEN_MODEL || 'qwen-plus', messages:[{role:'system',content:payload.kind === 'plan' ? planInstructions : instruction},{role:'user',content:payload.input}], temperature:0.35, max_tokens:payload.kind === 'plan' ? 2200 : 900 })
           : JSON.stringify({ model:process.env.OPENAI_MODEL || 'gpt-4.1-mini', instructions:instruction, input: payload.input, max_output_tokens:900 })
       });
-      if (!response.ok) return json(res, 502, { error:'模型服务暂时不可用，请继续使用本地叙事。' });
+      if (!response.ok) return json(res, 502, { error:'千问模型服务暂时不可用，请稍后重试。' });
       const result = await response.json();
       return json(res, 200, { text: isQwen ? result.choices?.[0]?.message?.content || '' : result.output_text || '' });
     } catch { return json(res, 502, { error:'模型服务连接失败，请稍后重试。' }); }
