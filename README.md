@@ -2,6 +2,8 @@
 
 MIT License · v0.2
 
+[在线试玩 Demo](https://life-unchosen.onrender.com) · [图文教程](submission/图文教程.md) · [创作说明](submission/创作说明.md)
+
 一个无需构建步骤的 AI 互动叙事 Web 应用。它从用户填写的过去分岔点出发，先规划 8 个跨学业/工作、关系、财务和生活领域的人生节点，再根据每次选择实时生成下一幕。
 
 ## 启动
