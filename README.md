@@ -30,3 +30,7 @@ npm start
 
 提交材料位于 `submission/`：图文教程、创作说明和提交说明均可直接查看。
 
+## Render 部署
+
+仓库已提供 `Dockerfile` 与 `render.yaml`。在 Render 中选择 **New + → Blueprint**，连接本仓库后填入私密环境变量 `DASHSCOPE_API_KEY`，即可部署。不要把密钥提交到 GitHub。
+
