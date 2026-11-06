@@ -1,14 +1,15 @@
 const $ = (s) => document.querySelector(s);
 const app = $('#app');
 const key = 'unlived-life-v1';
-const TOTAL_SCENES = 8;
+const TOTAL_SCENES = 8; // 兜底幕数；实际幕数以模型返回的主线计划 beats 为准
+function totalScenes(){ const n = game?.current?.storyPlan?.beats?.length; return Number.isInteger(n) && n >= 3 && n <= 20 ? n : TOTAL_SCENES; }
 const API_ENDPOINT = location.hostname === 'life-unchosen-demo.lzhdr41.chatgpt.site' ? 'https://life-unchosen-model-proxy.lzhdr41.chatgpt.site/api/ai' : '/api/ai';
 let game = JSON.parse(localStorage.getItem(key) || 'null');
 const esc = (s='') => String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function save(){ localStorage.setItem(key, JSON.stringify(game)); }
 function render(html){ app.innerHTML=`<section class="screen">${html}</section>`; }
 function button(text, cls='', action=''){ return `<button class="button ${cls}" ${action?`data-action="${action}"`:''}>${text}</button>`; }
-function ages(){ const start=game.divergence.age, end=game.endAge, span=end-start; return Array.from({length:TOTAL_SCENES},(_,i)=>Math.max(start+i+1,Math.min(end-1,Math.round(start+span*((i+1)/(TOTAL_SCENES+1)))))); }
+function ages(){ const start=game.divergence.age, end=game.endAge, span=end-start, total=totalScenes(); return Array.from({length:total},(_,i)=>Math.max(start+i+1,Math.min(end-1,Math.round(start+span*((i+1)/(total+1)))))); }
 function seed(){ return game.profile.values?.includes('关系')?'关系':game.profile.values?.includes('自由')?'自由':'成长'; }
 function defaultState(){ return {career:'探索中',relation:'尚待相遇',money:'平稳',mind:'好奇而忐忑',echo:'一段还未被回答的邀请'}; }
 function playerLens(){const p=game.profile,d=game.divergence;const values=p.values?.length?p.values.join('、'):'成长与安稳';const experience=p.experience?`你曾提到「${p.experience.slice(0,70)}」，这让你在面对变化时并不只是好奇，也会格外在意它是否值得。`:`你没有提供更多经历，所以这段推演会从你正在经历的人生阶段出发，不替你补写不存在的过去。`;return {values,experience,origin:`现实里，你当时选择的是「${d.actual}」；而这一次，你决定尝试「${d.alternate}」。这不是对哪条路更好的判断，只是从同一个人、同一组在意的东西出发，看看另一种日常会怎样慢慢展开。`};}
@@ -98,12 +99,63 @@ function profile(){ render(`<div class="panel"><div class="eyebrow">01 / 真实�
 function divergence(){ render(`<div class="panel"><div class="eyebrow">02 / 命运分岔点</div><h2>如果那天，你选了另一条路？</h2><p class="muted">写下一个真实发生过的选择，以及你想尝试的另一种可能。</p><label>你想改变的过去</label><textarea id="divergence" placeholder="例如：2022 年，我最终留在了杭州。如果那年去了上海会怎样？"></textarea><div class="row">${['我选择了另一座城市','我没有接受那份工作','我坚持了自己的专业'].map(x=>`<button class="choice" data-prompt="${x}">${x}</button>`).join('')}</div>${button('让命运理解我','primary','parse')}</div>`); }
 function confirm(){ const d=game.divergence; render(`<div class="panel"><div class="eyebrow">03 / 先确认，再出发</div><h2>这是你想改变的那一刻吗？</h2><div class="notice">系统根据你的描述生成下列信息。请修改任何不准确之处；只有确认后，故事才会开始。</div><label>分岔年龄</label><input id="dage" type="number" min="12" max="85" value="${d.age}"><label>当时的现实选择</label><input id="actual" value="${esc(d.actual)}"><label>你想尝试的平行选择</label><input id="alternate" value="${esc(d.alternate)}"><label>一个补充（可选）</label><input id="clarify" placeholder="当时你更在意什么？">${button('确认这个起点','primary','confirm')}</div>`); }
 function endingAge(){ let min=Math.max(game.profile.age, game.divergence.age+3); render(`<div class="panel"><div class="eyebrow">04 / 终章的时间</div><h2>你想在哪个年纪回望？</h2><p class="muted">三个关键事件会在这段人生里自然展开。</p><div class="row" id="ending">${[30,40,50,60,70].filter(x=>x>=min).map(x=>`<button class="choice" data-ending="${x}">${x} 岁</button>`).join('')}</div><label>或输入一个年龄（至少 ${min} 岁）</label><input id="endage" type="number" min="${min}" max="100" placeholder="${min}">${button('进入平行人生','primary','start-story')}</div>`); }
-function showScene(){ const i=game.current.index; if(i>=TOTAL_SCENES) return finale(); const scene=game.current.generatedScenes?.[i]; if(!scene) return modelError(game.current.aiError||'模型尚未生成这一幕。'); game.current.scene=scene; save(); const visual=({education:'campus',city:'city',career:'career',research:'career',relationship:'relationship',life:'life'})[storyMode()]; const last=game.current.events.at(-1),carried=i?`<div class="notice">承接上一幕：${esc(last?.chosen||'')} → ${esc(last?.effect||'')}</div>`:''; render(`<div class="panel scene ${visual}"><div class="split"><div><div class="eyebrow">第 ${i+1} / ${TOTAL_SCENES} 幕 · ${scene.age} 岁 · ${scene.place}</div><h2 class="scene-title">${scene.title}</h2></div><span class="chip">宇宙 ${game.current.id}</span></div><div class="scene-image" aria-hidden="true"></div>${carried}<p class="story">${esc(scene.story)}</p><div class="choices">${scene.options.map((o,i)=>`<button class="choice" data-choice="${i}">${esc(o.label)}<small>${esc(o.effect)}</small></button>`).join('')}</div><label>或写下你自己的行动</label><textarea id="free-choice" placeholder="写下你的具体做法"></textarea>${button('做出这个决定','primary','free-choice')}<div class="footer-actions">${button('查看命运时间线','','timeline')}</div></div>`); }
+function showScene(){ const i=game.current.index, total=totalScenes(); if(i>=total) return finale(); const scene=game.current.generatedScenes?.[i]; if(!scene) return modelError(game.current.aiError||'模型尚未生成这一幕。'); game.current.scene=scene; save(); const visual=({education:'campus',city:'city',career:'career',research:'career',relationship:'relationship',life:'life'})[storyMode()]; const last=game.current.events.at(-1),carried=i?`<div class="notice">承接上一幕：${esc(last?.chosen||'')} → ${esc(last?.effect||'')}</div>`:''; render(`<div class="panel scene ${visual}"><div class="split"><div><div class="eyebrow">第 ${i+1} / ${total} 幕 · ${scene.age} 岁 · ${scene.place}</div><h2 class="scene-title">${scene.title}</h2></div><span class="chip">宇宙 ${game.current.id}</span></div><div class="scene-image" aria-hidden="true"></div>${carried}<p class="story">${esc(scene.story)}</p><div class="choices">${scene.options.map((o,i)=>`<button class="choice" data-choice="${i}">${esc(o.label)}<small>${esc(o.effect)}</small></button>`).join('')}</div><label>或写下你自己的行动</label><textarea id="free-choice" placeholder="写下你的具体做法"></textarea>${button('做出这个决定','primary','free-choice')}<div class="footer-actions">${button('查看命运时间线','','timeline')}</div></div>`); }
 function modelError(message){ render(`<div class="panel"><div class="eyebrow">模型暂不可用</div><h2>这一幕还没有生成</h2><p class="story">${esc(message)}</p>${button('重试生成','primary','retry-scene')}${button('回到首页','','clear')}</div>`); }
 function transition(next){ app.classList.add('fadeout'); setTimeout(()=>{app.classList.remove('fadeout');next();},650); }
-function loadingScene(){render(`<div class="panel scene career"><div class="scene-image" aria-hidden="true"></div><div class="eyebrow">正在生成下一幕</div><h2 class="scene-title">故事正在回应你的选择</h2><p class="story">请稍候。</p></div>`);}
-async function prepareStoryPlan(){if(game.current.storyPlan)return;const facts={profile:game.profile,originalDivergence:game.divergence.raw,actualChoice:game.divergence.actual,parallelChoice:game.divergence.alternate,endingAge:game.endAge};const r=await fetch(API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'plan',input:`请根据这些事实制定一条平行人生主线：${JSON.stringify(facts)}`})});const data=await r.json();if(!r.ok)throw new Error(data.error||'千问服务暂时不可用。');const plan=JSON.parse(data.text.replace(/```json|```/g,'').trim());if(!Array.isArray(plan.beats)||plan.beats.length!==TOTAL_SCENES)throw new Error('千问返回的主线计划不完整，请重试。');game.current.storyPlan=plan;save();}
-async function prepareNextScene(){const i=game.current.index;if(i>=TOTAL_SCENES)return true;try{await prepareStoryPlan();const payload={profile:game.profile,originalDivergence:game.divergence.raw,actualChoice:game.divergence.actual,parallelChoice:game.divergence.alternate,endingAge:game.endAge,sceneNumber:i+1,storyPlan:game.current.storyPlan,currentBeat:game.current.storyPlan.beats[i],previousEvents:game.current.events.map(e=>({age:e.age,title:e.title,place:e.place,story:e.story,choice:e.chosen,consequence:e.effect})),state:game.current.state};const rule=i===0?'首幕从玩家已选择的未走道路开始，直接进入主线计划第一个人生节点。':`上一幕玩家选择了「${game.current.events.at(-1)?.chosen}」，结果是「${game.current.events.at(-1)?.effect}」。现在进入主线计划的下一个节点。`;const prompt=`${rule}\n请生成第 ${i+1} 幕。以下是唯一允许使用的事实：\n${JSON.stringify(payload)}`;const r=await fetch(API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'scene',input:prompt})});const data=await r.json();if(!r.ok)throw new Error(data.error||'千问服务暂时不可用。');const parsed=JSON.parse(data.text.replace(/```json|```/g,'').trim());if(!parsed.title||!parsed.place||!parsed.story||!Array.isArray(parsed.options)||parsed.options.length<2)throw new Error('千问返回格式不完整，请重试。');game.current.generatedScenes??={};game.current.generatedScenes[i]={id:i,age:ages()[i],title:parsed.title,place:parsed.place,story:parsed.story,options:parsed.options.slice(0,4).map((o,n)=>({label:o.label,effect:o.effect||'这项选择会被带入下一幕',id:n}))};game.current.aiError='';save();return true;}catch(err){game.current.aiError=err.message||'千问服务连接失败，请重试。';save();return false;}}
+function loadingScene(){render(`<div class="panel scene career"><div class="scene-image" aria-hidden="true"></div><div class="eyebrow">正在生成下一幕</div><h2 class="scene-title">故事正在回应你的选择</h2><p class="story">请稍候，通常需要 10–30 秒。<br><span class="muted">如果你刚打开这个链接，服务可能正在唤醒，最多需要约 1 分钟；失败时可点“重试生成”。</span></p></div>`);}
+const AI_TIMEOUT = 120000;
+function aiError(e){ if(e&&e.name==='AbortError')return '模型响应超时，请重试。'; if(e&&e.name==='TypeError')return '网络连接失败，请检查网络后重试。'; return (e&&e.message)||'模型服务连接失败，请重试。'; }
+async function aiPost(payload){
+  async function once(){
+    const ctl=new AbortController(); const timer=setTimeout(()=>ctl.abort(),AI_TIMEOUT);
+    let r;
+    try{ r=await fetch(API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:ctl.signal}); }
+    finally{ clearTimeout(timer); }
+    const raw=await r.text(); let data=null; try{ data=JSON.parse(raw); }catch{ data=null; }
+    if(!r.ok){
+      const message=(data&&data.error)||(r.status===503?'服务正在唤醒，请等十几秒后再试一次。':`模型服务暂时不可用（HTTP ${r.status}）。`);
+      const err=new Error(message); err.status=r.status; err.retryable=(r.status===502||r.status===503); throw err;
+    }
+    if(!data||typeof data.text!=='string'||!data.text.trim()){ const err=new Error('模型返回了空内容，请重试。'); err.retryable=true; throw err; }
+    return data.text;
+  }
+  try{ return await once(); }
+  catch(e){
+    if(!(e&&(e.retryable||e.name==='TypeError')))throw e;
+    await new Promise(r=>setTimeout(r,2500));
+    return once();
+  }
+}
+function extractJson(text){
+  const cleaned=String(text||'').replace(/```json|```/g,'').trim();
+  try{ return JSON.parse(cleaned); }catch{}
+  const s=cleaned.indexOf('{'), e=cleaned.lastIndexOf('}');
+  if(s>=0&&e>s) return JSON.parse(cleaned.slice(s,e+1));
+  throw new Error('模型返回的格式无法解析，请重试。');
+}
+async function prepareStoryPlan(){
+  if(game.current.storyPlan)return;
+  const facts={profile:game.profile,originalDivergence:game.divergence.raw,actualChoice:game.divergence.actual,parallelChoice:game.divergence.alternate,endingAge:game.endAge};
+  const plan=extractJson(await aiPost({kind:'plan',input:`请根据这些事实制定一条平行人生主线：${JSON.stringify(facts)}`}));
+  if(!plan||!Array.isArray(plan.beats)||plan.beats.length<3)throw new Error('千问返回的主线计划不完整，请重试。');
+  plan.beats=plan.beats.slice(0,12);
+  game.current.storyPlan=plan; save();
+}
+async function prepareNextScene(){
+  const i=game.current.index;
+  try{
+    await prepareStoryPlan();
+    if(i>=totalScenes())return true;
+    const payload={profile:game.profile,originalDivergence:game.divergence.raw,actualChoice:game.divergence.actual,parallelChoice:game.divergence.alternate,endingAge:game.endAge,sceneNumber:i+1,storyPlan:game.current.storyPlan,currentBeat:game.current.storyPlan.beats[i],previousEvents:game.current.events.map(e=>({age:e.age,title:e.title,place:e.place,story:e.story,choice:e.chosen,consequence:e.effect})),state:game.current.state};
+    const rule=i===0?'首幕从玩家已选择的未走道路开始，直接进入主线计划第一个人生节点。':`上一幕玩家选择了「${game.current.events.at(-1)?.chosen}」，结果是「${game.current.events.at(-1)?.effect}」。现在进入主线计划的下一个节点。`;
+    const prompt=`${rule}\n请生成第 ${i+1} 幕。以下是唯一允许使用的事实：\n${JSON.stringify(payload)}`;
+    const parsed=extractJson(await aiPost({kind:'scene',input:prompt}));
+    if(!parsed.title||!parsed.place||!parsed.story||!Array.isArray(parsed.options)||parsed.options.length<2)throw new Error('千问返回格式不完整，请重试。');
+    game.current.generatedScenes??={};
+    game.current.generatedScenes[i]={id:i,age:ages()[i],title:parsed.title,place:parsed.place,story:parsed.story,options:parsed.options.slice(0,4).map((o,n)=>({label:o.label,effect:o.effect||'这项选择会被带入下一幕',id:n}))};
+    game.current.aiError='';save();return true;
+  }catch(err){ game.current.aiError=aiError(err); save(); return false; }
+}
 function timeline(){ render(`<div class="panel"><div class="eyebrow">命运时间线 · ${game.current.id}</div><h2>你走过的路</h2><div class="timeline">${game.current.events.map(e=>`<div><strong>${e.age} 岁 · ${esc(e.title)}</strong>${esc(e.chosen)}<br><span class="muted">${esc(e.effect)}</span></div>`).join('')||'<p class="muted">故事刚刚开始。</p>'}</div>${button('回到此刻','primary','back-scene')}</div>`); }
 function finale(){ const st=game.current.state, end=game.endAge; game.current.summary=`到 ${end} 岁时，你成为了一个${st.career}的人。你没有得到所有答案，却学会了把${seed()}留在每一个重要决定里。`; save(); render(`<div class="panel scene"><div class="eyebrow">终章 · ${end} 岁</div><h2 class="scene-title">你抵达的，不是答案。</h2><p class="story">${esc(game.current.summary)}\n\n${esc(st.echo)}，仍是你人生里一束没有熄灭的光。</p><div class="footer-actions">${button('与未来的我说话','primary','chat')}${button('生成分享海报','','poster')}${game.current.events.length?button('回到某个选择','', 'rewind'):''}</div></div>`); }
 function chat(){ if(!game.current.chat) game.current.chat=[{who:'future',text:`我是 ${game.endAge} 岁的你。你想问哪一段人生？我会如实告诉你：我拥有过什么，也失去过什么。`}]; const bubbles=game.current.chat.map(m=>`<div class="bubble ${m.who==='me'?'me':'future'}">${esc(m.text)}</div>`).join(''); render(`<div class="panel scene"><div class="eyebrow">未来自我 · ${game.endAge} 岁 · ${game.current.id}</div><h2>在另一个未来相遇</h2><div class="chat">${bubbles}</div><textarea id="chat-input" placeholder="例如：你后悔过吗？"></textarea>${button('发送','primary','send-chat')}<div class="footer-actions">${button('去生成海报','','poster')}</div></div>`); }
@@ -127,7 +179,6 @@ app.addEventListener('click', async e=>{const b=e.target.closest('[data-action],
  if(a==='send-chat'){const q=$('#chat-input').value.trim();if(!q)return;game.current.chat.push({who:'me',text:q});save();chat();const answer=await askFuture(q);game.current.chat.push({who:'future',text:answer});save();return chat()}
 });
 function applyVirtual(s,o){ if(o.id===0){s.career='正在成长的实践者';s.money='略有波动';s.mind='兴奋又不安';s.echo='那位邀你同行的人，成为长期的合作对象';}if(o.id===1){s.relation='被认真照顾的关系';s.mind='踏实而清醒';s.echo='一次没有错过的晚餐，改变了彼此的距离';}if(o.id===2){s.career='有主见的独立行动者';s.mind='笃定';s.echo='一份你亲手写下的合作规则';} }
-async function askFuture(q){try{const prompt=`你是${game.endAge}岁的平行世界未来自我。仅基于以下人生记录，以温柔、现实、不预测未来的中文回答，120字内。档案：${JSON.stringify({profile:game.profile,divergence:game.divergence,events:game.current.events,state:game.current.state})}。问题：${q}`;const r=await fetch(API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input:prompt})});const data=await r.json();if(r.ok&&data.text)return data.text;return '千问暂时没有响应，请稍后再问一次。';}catch{return '千问连接失败，请稍后再问一次。';}}
+async function askFuture(q){try{const prompt=`你是${game.endAge}岁的平行世界未来自我。仅基于以下人生记录，以温柔、现实、不预测未来的中文回答，120字内。档案：${JSON.stringify({profile:game.profile,divergence:game.divergence,events:game.current.events,state:game.current.state})}。问题：${q}`;const text=await aiPost({input:prompt});if(text&&text.trim())return text.trim();return '未来自我暂时没有回应，请稍后再问一次。';}catch(e){console.warn('askFuture failed:',e&&e.message);return '未来自我暂时没有回应，请稍后再问一次。';}}
 function escXml(s=''){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 home();
-
