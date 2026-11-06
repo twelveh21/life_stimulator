@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: life-unchosen
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: DASHSCOPE_API_KEY
+        sync: false
+      - key: QWEN_MODEL
+        value: qwen-plus
+
