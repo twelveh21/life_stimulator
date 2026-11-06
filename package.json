@@ -1,6 +1,7 @@
 {
   "name": "life-simulator",
-  "version": "1.0.0",
+  "version": "0.2.0",
+  "license": "MIT",
   "private": true,
   "scripts": { "start": "node server.js", "test": "node --test" },
   "engines": { "node": ">=18" }
